@@ -34,9 +34,10 @@ or picking **UEFI Firmware Settings** from the GRUB menu.
 first one available.
 
 **Safety implication**: if Linux will not boot, the first method is unavailable. GRUB's
-`fwsetup` entry is then the only way in, and `recordfail` brings the menu up
-automatically after a failed boot, so the path exists. **Bear this in mind before
-hiding the GRUB menu completely.**
+`fwsetup` entry is then the only way in. This is one of the two reasons the GRUB menu
+is **left visible** rather than hidden; see
+[display-rotation.md](display-rotation.md). Even if it were hidden, `recordfail`
+brings it up automatically after a failed boot, so the path would still exist.
 
 ## Battery charge limiting: not present
 

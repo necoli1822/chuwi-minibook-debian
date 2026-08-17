@@ -21,7 +21,7 @@ and editor configuration are deliberately excluded.
 
 ```
 install/     step-by-step scripts (00 through 99). The order is deliberate
-patches/     seven modifications applied to upstream
+patches/     seven modifications to upstream; the installer applies three of them
 scripts/     panel refresh rate (ported to GRUB + initramfs-tools)
 notes/       what was measured, and why each decision went the way it did
 ```

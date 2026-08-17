@@ -146,18 +146,31 @@ whole device.
 **Conclusion: accept that the GRUB menu appears sideways.** Everything after it in the
 boot sequence, meaning plymouth, the login screen, the desktop and the TTY, is upright.
 
-#### Mitigation: hide the menu
+#### Mitigation: hide the menu — considered and declined
 
-Since it cannot be rotated, it can be hidden, by restoring Kubuntu's own defaults:
+Since it cannot be rotated, it could instead be hidden, by restoring Kubuntu's own
+defaults:
 
 ```
 GRUB_TIMEOUT_STYLE=hidden
 GRUB_TIMEOUT=0
 ```
 
-During this work it was deliberately set to `menu` and `5` instead, because kernel and
-DKMS changes need a fallback that can be selected immediately. Only restore the
-defaults **once everything that affects booting is finished and stable.**
+**This was decided against, and no install step does it.** The setting stays at `menu`
+with a 5 second timeout.
+
+It was set that way during the work because kernel and DKMS changes need a fallback
+that can be selected immediately. Once everything was stable the question was revisited
+and the menu was kept anyway, for two reasons:
+
+- Five sideways seconds is a small price. The screen is upright from plymouth onwards,
+  so this is the only stage that is ever wrong.
+- If Linux will not boot, GRUB's `fwsetup` entry is the **only** way into the BIOS on
+  this firmware, because key entry during POST is disabled. See
+  [bios-findings.md](bios-findings.md).
+
+The rest of this section is kept because it establishes that hiding it *would* be safe,
+for anyone who would rather not see it.
 
 Hiding it is safe because of Ubuntu's **recordfail** mechanism, which was confirmed
 working here:
@@ -169,10 +182,6 @@ working here:
 So **a failed boot brings the menu up for 30 seconds on the next one.** Holding Esc
 during boot also forces it, and the menu is usable sideways: arrow keys and Enter work
 regardless.
-
-One caveat from [bios-findings.md](bios-findings.md): if Linux will not boot, GRUB's
-`fwsetup` entry is the only way into the BIOS, since keyboard entry is disabled on this
-firmware. Keep that in mind before hiding the menu.
 
 ### A sideways flash when logging in or out (accepted)
 
