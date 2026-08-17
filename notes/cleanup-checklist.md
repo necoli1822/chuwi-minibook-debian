@@ -11,11 +11,17 @@ below arrives only if you went looking at the hardware by hand, as this work did
 
 ```
 linux-xanmod-x64v3          the kernel
-build-essential  clang  lld  llvm  libelf-dev
+build-essential  clang  lld  llvm  libelf-dev  dkms
                             Required by DKMS. XanMod is a clang + ThinLTO build, so
                             without these minibook_ec fails to rebuild. Needed on
                             every kernel update, so never remove them.
 ```
+
+**This is the failure worth being careful about.** It is silent. The kernel updates,
+DKMS cannot build, the machine boots fine, and the only symptom is that the fan RPM,
+the charger temperature and `bios_unlock` have quietly gone. Nothing announces it, and
+by the time it is noticed the cause is several days behind. `98-post-upgrade.sh`
+checks this set before anything else for that reason.
 
 ## Diagnostics, safe to remove
 
@@ -32,16 +38,25 @@ i2c-tools                   i2cget, used to read the accelerometer DEVID
                             and likely needed again for any EC work
 ```
 
-## Build-only, safe to remove
+## Build-only, removable with a caveat
 
-The builds are done and only their output matters. Remove these if you do not expect
-to rebuild.
+The builds are done and only their output matters.
 
 ```
 for iio-sensor-proxy (installed by 05-tablet-mode.sh):
   meson  ninja-build  libgudev-1.0-dev  libpolkit-gobject-1-dev
   libudev-dev  libsystemd-dev  systemd-dev  pkg-config
 ```
+
+**The caveat is upgrades.** The fork is a binary sitting behind a `dpkg-divert`, so
+ordinary package updates leave it alone. But a release upgrade that bumps a library
+soname makes it unrunnable, and putting it back means building it again. Removing
+this set is therefore a decision to fetch it again at that point, not a decision that
+it is never needed. `05-tablet-mode.sh` reinstalls it, so the cost is a download
+rather than a problem.
+
+Keep it if the machine is on a release that will see a version upgrade.
+`98-post-upgrade.sh` warns when the set is incomplete.
 
 **Only if you built the thermald fork by hand.** The installer never does, because
 thermald is not installed here, so these will not be present unless you fetched them

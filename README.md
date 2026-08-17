@@ -38,6 +38,28 @@ sudo ./install/install.sh               # apply in order
 
 Steps can be run individually. Each is idempotent, so running one twice is safe.
 
+## After a kernel or distribution upgrade
+
+```bash
+sudo ./install/98-post-upgrade.sh          # what broke, and which step restores it
+sudo ./install/98-post-upgrade.sh --fix    # re-run those steps
+```
+
+Run it after every kernel update and after any point release, 26.04 to 26.04.1
+included. Most of what this repository installs is invisible to dpkg and survives
+untouched, but three kinds of thing do not:
+
+| What | Why it is at risk |
+|---|---|
+| `/etc/default/grub`, `/etc/initramfs-tools/modules` | dpkg conffiles. An upgrade can revert them, taking the rotation, the TTY and the 75Hz VBT with them |
+| The `minibook_ec` DKMS build and the initramfs | Rebuilt per kernel. Silently fails if the clang toolchain was removed |
+| The `iio-sensor-proxy` diversion | A package update restores the stock binary if the diversion is gone, and tablet mode stops |
+
+**Do not remove `build-essential`, `clang`, `lld`, `llvm`, `libelf-dev` or `dkms`.**
+Without them a kernel update leaves the machine with no `minibook_ec` and no
+indication why. This is the failure that costs the most to notice late, so
+`98-post-upgrade.sh` checks it before anything else.
+
 ## What needs fixing, and why
 
 | Problem | Fix | Notes |

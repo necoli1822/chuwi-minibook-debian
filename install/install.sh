@@ -19,7 +19,12 @@ Applies the Chuwi MiniBook X N150 setup in order.
   05  tablet-mode     auto-rotation from the two accelerometers
   06  refresh-rate    VBT at 75Hz                         [reboot]
   07  touchpad        pointer jitter suppression
+  98  post-upgrade    after a kernel or distribution upgrade: what broke, and which
+                      step restores it (changes nothing without --fix)
   99  verify          verify everything against the running system (changes nothing)
+
+98 is not part of a first install. Run it after every kernel update and after any
+point release, for example 26.04 to 26.04.1.
 
 Why 02 sits there: the right moment is immediately after booting into XanMod and
 confirming it works. Any earlier and there is nowhere to fall back to if XanMod does
