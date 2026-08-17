@@ -1,0 +1,47 @@
+Subject: vbt_patch: verify the kernel headers fetched at build time
+
+intel_vbt_defs.h and intel_dsi_vbt_defs.h are pulled from torvalds master
+HEAD -- an unpinned moving target -- and define the structs used to locate
+fields inside the VBT blob this tool rewrites. A layout change upstream
+would silently mis-locate those fields and produce a corrupt VBT, so this is
+a correctness risk as much as a supply-chain one. Pin the headers by content.
+
+--- a/vbt_patch/Makefile
++++ b/vbt_patch/Makefile
+@@ -6,11 +6,30 @@
+ HEADERS = intel_vbt_defs.h intel_dsi_vbt_defs.h
+ 
+ vbt_patch: vbt_patch.c $(HEADERS)
++	@$(MAKE) --no-print-directory verify-headers
+ 	$(CC) $(CFLAGS) -o $@ vbt_patch.c
+ 
++CHECKSUMS = checksums.sha256
++
++# These headers come from mainline HEAD, which moves. Pin them by content:
++# a struct-layout change here silently mis-locates the fields we rewrite in
++# the VBT blob, so an unreviewed header is a correctness risk, not just a
++# supply-chain one.
+ $(HEADERS):
+ 	curl -fsSL -o $@ "$(KERNEL_GIT)/$(I915_DISPLAY)/$@"
+ 
++verify-headers: $(HEADERS)
++	@if [ ! -f "$(CHECKSUMS)" ]; then \
++		echo "ERROR: $(CHECKSUMS) missing -- headers are unverified." >&2; \
++		echo "  Review $(HEADERS), then: make record-checksums" >&2; \
++		exit 1; \
++	fi
++	sha256sum -c "$(CHECKSUMS)"
++
++record-checksums: $(HEADERS)
++	sha256sum $(HEADERS) > "$(CHECKSUMS)"
++	@echo "Wrote $(CHECKSUMS) -- review the headers before trusting it."
++
+ all: vbt_patch
+ 
+ clean:
+@@ -19,4 +38,4 @@
+ distclean: clean
+ 	rm -f $(HEADERS)
+ 
+-.PHONY: all install uninstall clean distclean
++.PHONY: all install uninstall clean distclean verify-headers record-checksums

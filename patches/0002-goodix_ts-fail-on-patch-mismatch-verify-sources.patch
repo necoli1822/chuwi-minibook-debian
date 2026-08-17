@@ -1,0 +1,68 @@
+Subject: goodix_ts: fail the build on patch mismatch, verify downloaded sources
+
+Two problems in one Makefile:
+
+1. "patch -N -p1 < goodix_resume.patch || true" swallowed failures, so a
+   patch that stopped applying on a newer kernel would still stamp itself
+   done and ship an UNPATCHED goodix driver -- which then shadows the
+   in-tree one via "dkms install --force". Now the build aborts instead.
+   The already-applied case is detected separately (reverse dry-run) so
+   re-running make stays idempotent, which is what "|| true" was protecting.
+
+2. The driver sources are fetched from a moving stable-branch tip over HTTPS
+   with no signature or checksum, then compiled into a kernel module. Pin
+   them by content per kernel version. An unrecorded version is a hard
+   failure rather than silent trust-on-first-use.
+
+--- a/modules/goodix_ts/Makefile
++++ b/modules/goodix_ts/Makefile
+@@ -9,11 +9,41 @@
+ 
+ all: .patched.stamp
+ 
++CHECKSUMS = checksums-linux-$(KVER_MM).sha256
++
+ $(SOURCES):
+ 	curl -fsSL -o $@ "$(KERNEL_GIT)/$(TOUCHSCREEN_DIR)/$@?h=linux-$(KVER_MM).y"
+ 
++# The sources above come from a moving branch tip with no signature, so pin
++# them by content. An unrecorded kernel version is a hard failure, not a
++# silent trust-on-first-use: review the sources, then run record-checksums.
++verify-sources: $(SOURCES)
++	@if [ ! -f "$(CHECKSUMS)" ]; then \
++		echo "ERROR: no recorded checksums for linux-$(KVER_MM).y" >&2; \
++		echo "  $(SOURCES) were downloaded but are unverified." >&2; \
++		echo "  Review them, then: make record-checksums" >&2; \
++		exit 1; \
++	fi
++	sha256sum -c "$(CHECKSUMS)"
++
++record-checksums: $(SOURCES)
++	sha256sum $(SOURCES) > "$(CHECKSUMS)"
++	@echo "Wrote $(CHECKSUMS) -- review the sources before trusting it."
++
++# A patch that stops applying must abort the build. Silently shipping an
++# unpatched driver that shadows the in-tree one is worse than not building.
+ .patched.stamp: $(SOURCES) goodix_resume.patch
+-	patch -N -p1 < goodix_resume.patch || true
++	@$(MAKE) --no-print-directory verify-sources
++	@if patch -p1 --dry-run --silent < goodix_resume.patch >/dev/null 2>&1; then \
++		patch -p1 < goodix_resume.patch; \
++	elif patch -p1 -R --dry-run --silent < goodix_resume.patch >/dev/null 2>&1; then \
++		echo "goodix_resume.patch already applied; skipping."; \
++	else \
++		echo "ERROR: goodix_resume.patch does not apply to linux-$(KVER_MM).y" >&2; \
++		echo "  Refusing to build an unpatched goodix_ts. Run 'make clean'," >&2; \
++		echo "  then rebase goodix_resume.patch onto the new sources." >&2; \
++		exit 1; \
++	fi
+ 	touch $@
+ 
+ install: .patched.stamp
+@@ -43,4 +73,5 @@
+ 	rm -f /etc/modules-load.d/$(DKMS_NAME).conf
+ 	modprobe -r "$(DKMS_NAME)" 2>/dev/null || true
+ 
+-.PHONY: all install uninstall clean enable disable
++.PHONY: all install uninstall clean enable disable verify-sources \
++        record-checksums

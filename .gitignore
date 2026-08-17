@@ -1,0 +1,28 @@
+# upstream/ is a separate checkout of fstanis/chuwi-minibook (has its own .git).
+# We keep it pristine as a reference and never track it here.
+upstream/
+
+# build artifacts
+*.o
+*.ko
+*.mod
+*.mod.c
+.*.cmd
+modules.order
+Module.symvers
+compile_commands.json
+.DS_Store
+
+# Personal configuration. This repository covers booting the machine and
+# enabling its hardware; theming, shell and editor setup are out of scope.
+# These files stay on disk, they are simply not tracked.
+config/
+notes/catppuccin-theming.md
+notes/theme-state-before-catppuccin.txt
+notes/shell-zsh.md
+notes/vim-setup.md
+notes/desktop-integration.md
+
+# Debugging photographs of the screen
+*.HEIC
+*.heic

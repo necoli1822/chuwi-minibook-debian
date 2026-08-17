@@ -1,0 +1,35 @@
+Subject: iio-sensor-proxy: validate the MXC6655 DEVID that probe_bus already reads
+
+probe_bus() read register 0x0E into "id" and then discarded it, so any device
+that merely ACKs at address 0x15 on a bus whose ACPI path contains ".I2C" was
+accepted as an MXC6655. Only read transactions are ever issued, so a
+misidentified device could not be corrupted, but the daemon could bind to the
+wrong one and then feed garbage into the hinge-angle computation.
+
+DEVID 0x02 was read from the hardware on a MiniBook X N150, from both the
+instantiated accelerometer (i2c-1, bound to mxc4005) and the second,
+un-instantiated one (i2c-0), so the constant is verified rather than assumed.
+
+--- a/iio-sensor-proxy/src/drv-mxc6655-accel.c
++++ b/iio-sensor-proxy/src/drv-mxc6655-accel.c
+@@ -24,6 +24,7 @@
+ #define MXC6655_ADDR		0x15
+ #define MXC6655_REG_XOUT	0x03	/* 6 bytes: XH,XL,YH,YL,ZH,ZL */
+ #define MXC6655_REG_DEVID	0x0E
++#define MXC6655_DEVID		0x02	/* verified on MiniBook X N150, both accels */
+ 
+ #define ACPI_CALL_PATH		"/proc/acpi/call"
+ #define ACPI_LTSM_CMD		"\\_SB.ACMK.LTSM"
+@@ -203,6 +204,12 @@
+ 		close (fd);
+ 		return -1;
+ 	}
++	if (id != MXC6655_DEVID) {
++		g_debug ("i2c-%d: 0x%02x answers with DEVID 0x%02x, not MXC6655",
++			 bus, MXC6655_ADDR, id);
++		close (fd);
++		return -1;
++	}
+ 	return fd;
+ }
+ 

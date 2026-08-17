@@ -1,0 +1,93 @@
+Subject: minibook_ec: do not build the keyboard backlight LED
+
+The EC firmware already drives the keyboard backlight on this machine.
+Fn+F5 cycles off / level 1 / level 2 and the auto-off timer works, all
+without any Linux driver involvement. The LED class device this file adds
+therefore enables nothing; it only offers software control of something
+that already works.
+
+That would be a fair trade if it were free, but it is the largest file in
+the module (234 of 910 lines) and by far the most invasive. It flips a GPIO
+gate bit (0x1611), and writes the PWM duty (0x1803), the firmware setpoint
+(0x03E2) and the auto-off timer flag (0x0411). Its own header comment
+concedes it is racing the EC firmware, which "silently mutates the LED on
+its own" with no SCI or ACPI Notify to announce it.
+
+We keep the rest of the module for things the system genuinely lacks: the
+keyboard_enabled / touchpad_enabled sysfs knobs (needed for disabling input
+in tablet mode), bios_unlock, fan RPM (no fan tachometer is exposed
+otherwise), and the charger thermal zone (no other source reports it).
+
+minibook_ec_kbd_backlight.c is left in the tree, just not compiled or
+installed, so this stays a small patch to rebase.
+
+--- a/modules/minibook_ec/Kbuild
++++ b/modules/minibook_ec/Kbuild
+@@ -1,4 +1,4 @@
+ obj-m := minibook_ec.o
+ minibook_ec-y := minibook_ec_core.o minibook_ec_sysfs.o \
+                  minibook_ec_thermal.o minibook_ec_fan.o \
+-                 minibook_ec_i2ec.o minibook_ec_kbd_backlight.o
++                 minibook_ec_i2ec.o
+--- a/modules/minibook_ec/Makefile
++++ b/modules/minibook_ec/Makefile
+@@ -3,8 +3,7 @@
+ DKMS_DIR = /usr/src/$(DKMS_NAME)-$(DKMS_VERSION)
+ 
+ SOURCES = minibook_ec_core.c minibook_ec_sysfs.c minibook_ec_thermal.c \
+-          minibook_ec_fan.c minibook_ec_i2ec.c minibook_ec_kbd_backlight.c \
+-          minibook_ec.h
++          minibook_ec_fan.c minibook_ec_i2ec.c minibook_ec.h
+ 
+ all:
+ 	@echo "Nothing to build (DKMS builds against the running kernel at install time)"
+--- a/modules/minibook_ec/minibook_ec_core.c
++++ b/modules/minibook_ec/minibook_ec_core.c
+@@ -60,19 +60,13 @@
+ 	if (ret < 0)
+ 		dev_warn(&pdev->dev, "fan hwmon not available (%d)\n", ret);
+ 
+-	ret = minibook_ec_register_kbd_backlight(ec);
+-	if (ret < 0)
+-		dev_warn(&pdev->dev, "kbd backlight LED not available (%d)\n",
+-			 ret);
+-
+ 	dev_info(&pdev->dev,
+-		 "touchpad %s, keyboard %s, SoC %s, charger %s, fan %s, kbd_bl %s\n",
++		 "touchpad %s, keyboard %s, SoC %s, charger %s, fan %s\n",
+ 		 tptl != TPTL_OFF ? "enabled" : "disabled",
+ 		 kbcd == KBCD_LAPTOP ? "enabled" : "disabled",
+ 		 ec->soc_tz ? "registered" : "unavailable",
+ 		 ec->charger_tz ? "registered" : "unavailable",
+-		 ec->hwmon_dev ? "registered" : "unavailable",
+-		 ec->kbd_bl ? "registered" : "unavailable");
++		 ec->hwmon_dev ? "registered" : "unavailable");
+ 
+ 	return 0;
+ }
+--- a/modules/minibook_ec/minibook_ec.h
++++ b/modules/minibook_ec/minibook_ec.h
+@@ -30,14 +30,11 @@
+ 
+ #define LTSM_PATH	"\\_SB.ACMK.LTSM"
+ 
+-struct kbd_backlight;
+-
+ struct minibook_ec {
+ 	struct platform_device *pdev;
+ 	struct thermal_zone_device *soc_tz;
+ 	struct thermal_zone_device *charger_tz;
+ 	struct device *hwmon_dev;
+-	struct kbd_backlight *kbd_bl;
+ 	struct mutex i2ec_lock;
+ 	bool pnpcfg_available;
+ };
+@@ -50,8 +47,6 @@
+ int minibook_ec_register_fan(struct minibook_ec *ec);
+ void minibook_ec_unregister_fan(struct minibook_ec *ec);
+ 
+-int minibook_ec_register_kbd_backlight(struct minibook_ec *ec);
+-
+ int minibook_ec_i2ec_init(struct minibook_ec *ec);
+ void minibook_ec_i2ec_cleanup(struct minibook_ec *ec);
+ u8 minibook_ec_i2ec_read(struct minibook_ec *ec, u16 addr);

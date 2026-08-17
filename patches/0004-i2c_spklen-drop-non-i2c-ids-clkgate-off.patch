@@ -1,0 +1,40 @@
+Subject: i2c_designware_spklen: drop non-I2C IDs, disable clock gating by default
+
+0x54d8/0x54d9 were listed as "UART (share LPSS block)" but appear in neither
+mainline's intel-lpss-pci.c ADL-N table nor pci.ids, and the repo's own
+docs/devices.md does not list them as present. They match nothing today, but
+if they ever did the driver would apply DesignWare I2C register offsets to a
+non-I2C register map: reading 0x00 on a DW UART pops the RX FIFO, and the
+writes land on shadow-register/halt-TX territory.
+
+LPSS_PRIV_CLKGATE (0x38) is not among the LPSS private registers mainline
+documents, and the code writes a bare 1 over the whole 32-bit register rather
+than setting a bit. It is also unrelated to spike suppression. Default it off
+until the layout is confirmed; clkgate=1 still opts in.
+
+--- a/modules/i2c_designware_spklen/i2c_designware_spklen.c
++++ b/modules/i2c_designware_spklen/i2c_designware_spklen.c
+@@ -44,15 +44,20 @@
+ MODULE_PARM_DESC(hs_spklen,
+ 	"IC_HS_SPKLEN value (0 = auto-detect from speed mode)");
+ 
+-static bool clkgate = true;
++/*
++ * LPSS_PRIV_CLKGATE (0x38) is not among the LPSS private registers described
++ * by mainline (acpi_lpss.c / intel-lpss.c document 0x04, 0x08, 0x10, 0x14,
++ * 0x20, 0x40, 0xfc). Until its layout is confirmed, do not write it by
++ * default -- it is unrelated to spike suppression anyway.
++ */
++static bool clkgate;
+ module_param(clkgate, bool, 0444);
+-MODULE_PARM_DESC(clkgate, "Enable LPSS dynamic clock gating (default: true)");
++MODULE_PARM_DESC(clkgate, "Enable LPSS dynamic clock gating (default: false)");
+ 
+ /* Alder Lake-N I2C PCI device IDs */
+ static const unsigned short adl_n_i2c_ids[] = {
+ 	0x54e8, 0x54e9, 0x54ea, 0x54eb,	/* I2C 0-3 */
+ 	0x54c5, 0x54c6,			/* I2C 4-5 */
+-	0x54d8, 0x54d9,			/* UART (share LPSS block) */
+ 	0
+ };
+ 

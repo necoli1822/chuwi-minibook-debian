@@ -1,0 +1,29 @@
+Subject: dptf_enabler: bounds-check GNVS offsets before writing
+
+SET_FLAGS() indexed the remapped GNVS region with hardcoded offsets (up to
+0x969 by default, 0xB56 with enable_fans/enable_sensors) without ever
+checking them against gnvs_len parsed from the DSDT. memremap(MEMREMAP_WB)
+resolves to the cached linear map on x86, so an access past the end does not
+fault -- it silently reads and writes adjacent physical memory. The module is
+loaded on every boot via /etc/modules-load.d, so a mismatch would repeat.
+
+Measured on this unit: GNVS is at 0x73520000, length 3348 (0xD14), so every
+offset is in range today. This guard is for BIOS updates and other units.
+
+--- a/modules/dptf_enabler/dptf_enabler.c
++++ b/modules/dptf_enabler/dptf_enabler.c
+@@ -138,7 +138,13 @@
+ 
+ 	#define SET_FLAGS(arr) do { \
+ 		for (i = 0; i < ARRAY_SIZE(arr); i++) { \
+-			u8 *p = (u8 *)gnvs + arr[i].off; \
++			u8 *p; \
++			if (arr[i].off >= gnvs_len) { \
++				pr_warn("skip %s: offset 0x%x outside GNVS (len 0x%x)\n", \
++					arr[i].name, arr[i].off, gnvs_len); \
++				continue; \
++			} \
++			p = (u8 *)gnvs + arr[i].off; \
+ 			if (!*p) { \
+ 				*p = 1; \
+ 				n++; \
