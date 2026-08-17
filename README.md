@@ -52,18 +52,37 @@ Steps can be run individually. Each is idempotent, so running one twice is safe.
 
 ## What this adds to upstream
 
-Upstream was audited rather than taken as-is, and seven things were changed. All of
-them live in `patches/`.
+Upstream was audited rather than taken as-is. Seven patches came out of that audit,
+all in `patches/`. They fall into two groups, and the difference matters: **only
+three of them are applied by the installer.**
 
-| Patch | What it does |
-|---|---|
-| 0001 | Stops `dptf_enabler` writing GNVS offsets without a bounds check |
-| 0002 | Makes the `goodix_ts` build fail on a patch mismatch instead of ignoring it, and pins the fetched sources by checksum |
-| 0003 | Adds checksum verification to the kernel headers `vbt_patch` downloads |
-| 0004 | Drops device IDs this machine does not have from `i2c_designware_spklen`, and defaults `clkgate` off |
-| 0005 | Makes the `iio-sensor-proxy` fork check the MXC6655 DEVID rather than assuming it |
-| 0006 | Removes keyboard backlight support from `minibook_ec`, which this machine has no hardware for |
-| thermald | Rebases the MiniBook delta onto upstream master and fixes two out-of-bounds reads |
+### Applied by the installer
+
+Each of these patches a component that is actually installed on this machine.
+
+| Patch | Applied by | What it does |
+|---|---|---|
+| 0003 | `06-refresh-rate.sh` | Adds checksum verification to the kernel headers `vbt_patch` downloads |
+| 0005 | `05-tablet-mode.sh` | Makes the `iio-sensor-proxy` fork check the MXC6655 DEVID rather than assuming it |
+| 0006 | `04-minibook-ec.sh` | Removes keyboard backlight support from `minibook_ec`, which this machine has no hardware for |
+
+### Not applied here
+
+These fix real defects in upstream, but they patch components that measurement showed
+this machine does not need, so no install step references them. They are kept because
+**"unnecessary on this unit" and "worthless upstream" are different claims** — anyone
+who does install these components, on this or another machine, wants these fixes. See
+[what is deliberately not installed](#what-is-deliberately-not-installed) for why each
+component was dropped.
+
+| Patch | Component | What it does |
+|---|---|---|
+| 0001 | `dptf_enabler` | Stops it writing GNVS offsets without a bounds check |
+| 0002 | `goodix_ts` | Makes the build fail on a patch mismatch instead of ignoring it, and pins the fetched sources by checksum |
+| 0004 | `i2c_designware_spklen` | Drops device IDs this machine does not have, and defaults `clkgate` off |
+| thermald | `thermal_daemon` fork | Rebases the MiniBook delta onto upstream master and fixes two out-of-bounds reads |
+
+### The porting work
 
 `scripts/update-vbt-clock-debian.sh` is upstream's Arch script (mkinitcpio/limine)
 ported to GRUB and initramfs-tools, with four bugs in the original fixed along the
@@ -78,6 +97,11 @@ is in [hardware-status.md](notes/hardware-status.md).
 - `goodix_ts` — the in-tree driver already works. This patch costs the ESD recovery path
 - `i2c_designware_spklen` — zero I2C errors anywhere, so there is no fault to fix
 - `dptf_enabler` — 180 seconds at full load with zero throttling. Thermal control needs no help
+- the `thermald` fork — same measurement. `thermald` was already `inactive` before it was
+  removed, and `intel_pstate` (active, powersave) governs on its own, with the fan driven
+  autonomously by the EC. Removing the stock kernel takes `thermald` with it by way of
+  `ubuntu-kernel-accessories`, and on this machine that changed nothing measurable.
+  See [kernel-cleanup.md](notes/kernel-cleanup.md)
 - `acpi_call` — established as unnecessary
 
 ## Credits
